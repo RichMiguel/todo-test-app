@@ -1,0 +1,22 @@
+{
+  "name": "express-drizzle-todo",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "drizzle-orm": "^0.29.0",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "nodemon": "^3.1.10"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.18"
+  }
+}

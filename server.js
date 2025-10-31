@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
-import { db } from './db/index.js';
+import { initDatabase, getDb } from './db/index.js';
 import { todos } from './db/schema.js';
 import { desc, eq } from 'drizzle-orm';
 
@@ -15,9 +15,31 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 
+// Initialize database
+let dbReady = false;
+initDatabase()
+  .then(() => {
+    dbReady = true;
+    console.log('✓ Database connected');
+  })
+  .catch(err => {
+    console.error('✗ Database connection failed:', err.message);
+  });
+
+// Middleware to check database connection
+function requireDb(req, res, next) {
+  if (!dbReady) {
+    return res.status(503).render('error', { 
+      error: 'Database is not ready. Please try again in a moment.' 
+    });
+  }
+  next();
+}
+
 // Routes
-app.get('/', async (req, res) => {
+app.get('/', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const allTodos = await db
       .select()
       .from(todos)
@@ -36,8 +58,9 @@ app.get('/', async (req, res) => {
 });
 
 // Create todo
-app.post('/todos', async (req, res) => {
+app.post('/todos', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const { title, description } = req.body;
     
     if (!title || title.trim() === '') {
@@ -56,8 +79,9 @@ app.post('/todos', async (req, res) => {
 });
 
 // Toggle complete
-app.post('/todos/:id/toggle', async (req, res) => {
+app.post('/todos/:id/toggle', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const todoId = parseInt(req.params.id);
     const todo = await db.select().from(todos).where(eq(todos.id, todoId));
     
@@ -77,8 +101,9 @@ app.post('/todos/:id/toggle', async (req, res) => {
 });
 
 // Delete todo
-app.post('/todos/:id/delete', async (req, res) => {
+app.post('/todos/:id/delete', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const todoId = parseInt(req.params.id);
     await db.delete(todos).where(eq(todos.id, todoId));
     res.redirect('/');
@@ -88,8 +113,9 @@ app.post('/todos/:id/delete', async (req, res) => {
 });
 
 // Edit page
-app.get('/todos/:id/edit', async (req, res) => {
+app.get('/todos/:id/edit', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const todoId = parseInt(req.params.id);
     const result = await db.select().from(todos).where(eq(todos.id, todoId));
     
@@ -104,8 +130,9 @@ app.get('/todos/:id/edit', async (req, res) => {
 });
 
 // Update todo
-app.post('/todos/:id/update', async (req, res) => {
+app.post('/todos/:id/update', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const todoId = parseInt(req.params.id);
     const { title, description } = req.body;
 
@@ -129,13 +156,23 @@ app.post('/todos/:id/update', async (req, res) => {
 });
 
 // API endpoint - get all todos
-app.get('/api/todos', async (req, res) => {
+app.get('/api/todos', requireDb, async (req, res) => {
   try {
+    const db = getDb();
     const allTodos = await db.select().from(todos).orderBy(desc(todos.createdAt));
     res.json(allTodos);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    database: dbReady ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.listen(PORT, () => {
